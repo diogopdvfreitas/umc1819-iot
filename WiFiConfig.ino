@@ -7,15 +7,27 @@ void setup()
   Serial.begin(115200);
   Serial.println();
 
+  String ssid;
+  String password;
+
   /* Start a namespace "iotk"
   in Read-Write mode: set second parameter to false 
   Note: Namespace name is limited to 15 chars */
   preferences.begin("iotk", false);
 
   Serial.println("SSID: ");
-  String ssid = Serial.readString();
+  while (Serial.available() == 0);
+  
+  // read the incoming:
+  ssid = Serial.readString();
+  Serial.println(ssid);
+
   Serial.println("Password: ");
-  String password = Serial.readString();
+  while (Serial.available() == 0);
+  
+  // read the incoming:
+  password = Serial.readString();
+  Serial.println(password);
 
   /* Store credentials to the Preferences */
   preferences.putString("SSID", ssid);
