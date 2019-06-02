@@ -55,22 +55,46 @@ void setup()
   WiFi.begin(ssid_array, password_array);
 
   /*A delay is needed so we only continue with the program untill the ESP32 is effectively connected to the WiFi network*/
-  while(WiFi.status() != WL_CONNECTED)
+  while (WiFi.status() != WL_CONNECTED)
   {
     delay(500);
     Serial.println("Connecting to WiFi...");
   }
- 
-  Serial.println("WiFi Connected.");
 
-  Serial.print("IP Address: ");
-  Serial.println(WiFi.localIP());
+  if (WiFi.status() == WL_CONNECTED){
+  	onLed_10s();
+  	Serial.println("WiFi Connected.");
+
+ 	Serial.print("IP Address: ");
+	Serial.println(WiFi.localIP());
+  }
+  else {
+  	blinkLed_10s();
+  }
 
   /* Close the Preferences */
   preferences.end();
 }
 
+void onLed_10s(){
+	pinMode(LED1, OUTPUT);
+	digitalWrite(LED, HIGH); delay(10000); digitalWrite(LED, LOW);
+}
+
+void blinkLed_10s(){
+	pinMode(LED1, OUTPUT);
+	digitalWrite(LED, HIGH); delay(500); digitalWrite(LED, LOW); delay(500);
+	digitalWrite(LED, HIGH); delay(500); digitalWrite(LED, LOW); delay(500);
+	digitalWrite(LED, HIGH); delay(500); digitalWrite(LED, LOW); delay(500);
+	digitalWrite(LED, HIGH); delay(500); digitalWrite(LED, LOW); delay(500);
+	digitalWrite(LED, HIGH); delay(500); digitalWrite(LED, LOW); delay(500);
+	digitalWrite(LED, HIGH); delay(500); digitalWrite(LED, LOW); delay(500);
+	digitalWrite(LED, HIGH); delay(500); digitalWrite(LED, LOW); delay(500);
+	digitalWrite(LED, HIGH); delay(500); digitalWrite(LED, LOW); delay(500);
+	digitalWrite(LED, HIGH); delay(500); digitalWrite(LED, LOW); delay(500);
+	digitalWrite(LED, HIGH); delay(500); digitalWrite(LED, LOW); delay(500);
+}
+
 void loop() {
-  // put your main code here, to run repeatedly:
 
 }
