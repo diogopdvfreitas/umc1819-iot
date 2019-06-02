@@ -6,26 +6,25 @@ void setup()
 {
   Serial.begin(115200);
   Serial.println();
-
+    
   String ssid;
   String password;
+
+  preferences.clear();
 
   /* Start a namespace "iotk"
   in Read-Write mode: set second parameter to false 
   Note: Namespace name is limited to 15 chars */
   preferences.begin("iotk", false);
 
-  Serial.println("SSID: ");
+  /*SSID and Password inputs*/
+  Serial.print("SSID: ");
   while (Serial.available() == 0);
-  
-  // read the incoming:
   ssid = Serial.readString();
   Serial.println(ssid);
 
-  Serial.println("Password: ");
+  Serial.print("Password: ");
   while (Serial.available() == 0);
-  
-  // read the incoming:
   password = Serial.readString();
   Serial.println(password);
 
@@ -33,7 +32,34 @@ void setup()
   preferences.putString("SSID", ssid);
   preferences.putString("Password", password);
 
-  WiFi.begin(preferences.getString("SSID").c_str(), preferences.getString("Password").c_str());
+  /*Converting a string into a char array*/
+  // Length (it already including the null terminator)
+  int ssid_len = ssid.length();
+  int password_len = password.length();
+
+  // Prepare the character array
+  char ssid_array[ssid_len];
+  char password_array[password_len];
+
+  for(int i = 0; i < ssid_len-1; i++)
+    ssid_array[i] = ssid[i];
+      
+  ssid_array[ssid_len-1] = '\0';
+
+  for(int i = 0; i < password_len-1; i++)
+    password_array[i] = password[i];
+      
+  password_array[ssid_len-1] = '\0';
+
+  /*Connecting to WiFi*/
+  WiFi.begin(ssid_array, password_array);
+
+  /*A delay is needed so we only continue with the program untill the ESP32 is effectively connected to the WiFi network*/
+  while(WiFi.status() != WL_CONNECTED)
+  {
+    delay(500);
+    Serial.println("Connecting to WiFi...");
+  }
  
   Serial.println("WiFi Connected.");
 
