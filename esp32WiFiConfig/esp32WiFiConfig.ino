@@ -11,31 +11,26 @@ void setup(){
   String ssid;
   String pass;
 
-  //preferences.clear();
+  preferences.clear();
 
   /* Start a namespace "iotk" in Read-Write mode: set second parameter to false 
   Note: Namespace name is limited to 15 chars */
   preferences.begin("iotk", false);
 
-  if (preferences.getString("SSID") == NULL){
-    /* SSID and Password inputs */
-    Serial.print("SSID: ");
-    while (Serial.available() == 0);
-    ssid = Serial.readString();
-    Serial.println(ssid);
+  /* SSID and Password inputs */
+  Serial.print("SSID: ");
+  while (Serial.available() == 0);
+  ssid = Serial.readString();
+  Serial.println(ssid);
 
-    Serial.print("Password: ");
-    while (Serial.available() == 0);
-    pass = Serial.readString();
-    Serial.println(pass);
+  Serial.print("Password: ");
+  while (Serial.available() == 0);
+  pass = Serial.readString();
+  Serial.println(pass);
 
-    /* Store credentials to the Preferences */
-    preferences.putString("SSID", ssid);
-    preferences.putString("Pass", pass);
-  }
-
-  ssid = preferences.getString("SSID");
-  pass = preferences.getString("Pass");
+  /* Store credentials to the Preferences */
+  preferences.putString("SSID", ssid);
+  preferences.putString("Pass", pass);
 
   /* Converting a string into a char array
   Length (it already including the null terminator) */
@@ -88,7 +83,7 @@ void onLed_10s(){
 
 void blinkLed_10s(){
 	pinMode(LED_BUILTIN, OUTPUT);
-  for(int i = 0; i == 9; i++)
+  	for(int i = 0; i <= 9; i++)
 	   digitalWrite(LED_BUILTIN, HIGH); delay(500); digitalWrite(LED_BUILTIN, LOW); delay(500);
 }
 

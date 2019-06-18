@@ -83,7 +83,7 @@ void onLed_10s(){
 
 void blinkLed_10s(){
 	pinMode(LED_BUILTIN, OUTPUT);
-  for(int i = 0; i == 9; i++)
+  	for(int i = 0; i <= 9; i++)
 	   digitalWrite(LED_BUILTIN, HIGH); delay(500); digitalWrite(LED_BUILTIN, LOW); delay(500);
 }
 
