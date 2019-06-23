@@ -13,6 +13,11 @@ void setup(){
   delay(2000);
   if(receiveCredentials() == true){
     storeCredentials();
+    ESP.restart();
+  }
+  else{
+    Serial.println("No WiFi Credentials were received");
+    Serial.println("Using WiFi Credentials stored in memory");
   }
 
   String ssid = getStoredSSID();
@@ -57,6 +62,7 @@ void setup(){
 }
 
 bool receiveCredentials(){
+  Serial.println("Waiting for WiFi Credentials");
   /*SSID input*/
   Serial.print("SSID: ");
 
@@ -70,13 +76,16 @@ bool receiveCredentials(){
   }
 
   recv_ssid = Serial.readString();
-  Serial.print(recv_ssid);
+  if(recv_ssid[recv_ssid.length() - 1] == '\n')
+    recv_ssid[recv_ssid.length() - 1] = '\0';
+  Serial.println(recv_ssid);
 
   /*Password input*/
   Serial.print("Password: ");
   while (Serial.available() == 0);
   recv_pass = Serial.readString();
-  Serial.print(recv_pass);
+  if(recv_pass[recv_pass.length() - 1] == '\n')
+    recv_pass[recv_pass.length() - 1] = '\0';
 
   return true;
 }
@@ -85,6 +94,7 @@ void storeCredentials(){
   preferences.clear();
   preferences.putString("ssid", recv_ssid);
   preferences.putString("pass", recv_pass);
+  Serial.println("Credentials successfully stored in memory");
 }
 
 String getStoredSSID(){
@@ -101,9 +111,10 @@ String getStoredPassword(){
 
 void convertString(String str, char* res){
   int len = str.length();
-  for(int i = 0; i < len - 1; i++)
+  //for(int i = 0; i < len - 1; i++){
+  for(int i = 0; i < len; i++){
     res[i] = str[i];
-  res[len - 1] = '\0';
+  }
 }
 
 void onLed_10s(){
