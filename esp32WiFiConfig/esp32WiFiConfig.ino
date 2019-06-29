@@ -3,22 +3,240 @@
 #include <Preferences.h>
 #include <PubSubClient.h>
 
+/* --- GLOBAL VARIABLES --- */
+
 Preferences preferences;
+const int ARDUINO_N = 3;
 const int BUTTON_KEY = 0;
 const int LED_BUILTIN = 2;
+
+/* --- WIFI CREDENTIALS VARAIBLES --- */
+
 String recv_ssid;
 String recv_pass;
 
 IPAddress myIP;
 IPAddress serverIP; int serverPort;
+
+/* --- CONNECTION VARIABLES --- */
+
 WiFiClient wifiClient;
 PubSubClient client(wifiClient);
 
-String mqttUsers[] = {"tk3_esp1", "tk3_esp2", "tk3_esp3", "tk3_esp4"};
-String mqttPswrd[] = {"esp1mqtt", "esp2mqtt", "esp3mqtt", "esp4mqtt"};
+const String mqttUsers[] = {"tk3_esp1", "tk3_esp2", "tk3_esp3", "tk3_esp4"};
+const String mqttPswrd[] = {"esp1mqtt", "esp2mqtt", "esp3mqtt", "esp4mqtt"};
 const String mqttTopic = "mensapoll";
 
+bool wifiConnected = false;
+bool foundMQTTBroker = false;
 bool mqttConnected = false;
+
+/* --- POLL VARIABLES --- */
+
+enum State{
+  NOPOLL, INITPOLL, AWAITVOTES, VOTE, VOTED, DECIDED
+};
+
+bool messageReceived = false;
+String payloadMsgRecv = "";
+
+const int LONG_PRESS = 3000;
+const int NO_COUNT_INPUT = 2000;
+
+int currButtonState = 0;              // Button's current state
+int lastButtonState = 1;              // Button's state in the last loop
+int timeStartPressed = 0;             // Time the button was pressed
+int timeEndPressed = 0;               // Time the button was released
+int timeHold = 0;                     // How long the button was held
+int timeReleased = 0;                 // How long the button released
+int timeLedChange = 0;
+
+bool flagLEDBlink0 = false;
+bool flagLEDBlink1 = false;
+bool flagLEDBlink2 = false;
+
+int nPollAccept = 0;
+int votes = 0;
+int decisionTime = 0;
+
+/* --- AUXILIARY METHODS --- */
+
+void ledOn(){
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH);
+}
+
+void ledOn(int nTime){
+  pinMode(LED_BUILTIN, OUTPUT);
+  int millis = nTime * 1000;
+  digitalWrite(LED_BUILTIN, HIGH); delay(millis); digitalWrite(LED_BUILTIN, LOW);
+}
+
+void ledOff(){
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, LOW);
+}
+
+void ledBlink(){
+  pinMode(LED_BUILTIN, OUTPUT);
+  if(digitalRead(LED_BUILTIN) == HIGH)
+    digitalWrite(LED_BUILTIN, LOW);
+  else
+    digitalWrite(LED_BUILTIN, HIGH);
+  timeLedChange = millis();
+}
+
+void ledBlink(int nTimes, int nTimeAppart){
+  pinMode(LED_BUILTIN, OUTPUT);
+  int millis = nTimeAppart * 1000;
+  for(int i = 0; i <= nTimes - 1; i++) {
+    digitalWrite(LED_BUILTIN, HIGH); delay(millis); digitalWrite(LED_BUILTIN, LOW); delay(millis);
+  }
+}
+
+void sendMessage(String message){
+  client.publish(mqttTopic.c_str(), message.c_str());
+  Serial.print("Message sent ["); Serial.print(mqttTopic); Serial.print("] "); 
+  Serial.println(message);
+}
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  for(int i = 0; i < length; i++) {
+    char c = (char)payload[i];
+    payloadMsgRecv += c;
+    Serial.print(c);
+  }
+  Serial.println();
+  messageReceived = true;
+}
+
+/* --- POLL CLASSES --- */
+
+class PollState{
+  public:
+    PollState(){}
+    virtual void shortPress();
+    virtual void longPress();
+    virtual void finish();
+    virtual State getValue() = 0;
+};
+
+PollState* state;
+bool initiator = false;
+
+void changeState(State stt);
+
+class State_NoPoll : public PollState{
+  public:
+    State_NoPoll(){
+      ledOff();
+      initiator = false;
+      nPollAccept = 0; votes = 0; decisionTime = 0;
+      flagLEDBlink0 = false; flagLEDBlink1 = false; flagLEDBlink2 = false;
+      Serial.println("Press button > 3s to initiate poll");
+    }
+    void shortPress(){}
+    void longPress(){
+      changeState(INITPOLL);
+    }
+    void finish(){}
+    State getValue(){ return NOPOLL; }
+};
+
+class State_InitPoll : public PollState{
+  private:
+    int presses = 0;
+  public:
+    State_InitPoll(){
+      initiator = true;
+      Serial.println("Initiating Poll Configuration");
+      Serial.println("Press the number of positives needed for poll success");
+    }
+    void shortPress(){
+      presses++;
+      Serial.print("N Times Pressed: "); Serial.println(presses);
+    }
+    void longPress(){}
+    void finish(){
+      Serial.print("Total Times Pressed: "); Serial.println(presses);
+      nPollAccept = presses;
+      ledBlink(presses, 1);
+      Serial.println("Poll Configuration Finished");
+      changeState(AWAITVOTES);
+    }
+    State getValue(){ return INITPOLL; }
+};
+
+class State_AwaitVotes : public PollState{
+  public:
+    State_AwaitVotes(){
+      String message = "POLL "; message += nPollAccept;
+      sendMessage(message);
+      Serial.println("Poll Initiated - Awaiting decision");
+      ledBlink(); flagLEDBlink2 = true;
+    }
+    void shortPress(){}
+    void longPress(){
+      Serial.println("Cancelling Poll");
+      sendMessage("CLEAR");
+    }
+    void finish(){}
+    State getValue(){ return AWAITVOTES; }
+};
+
+class State_Vote : public PollState{
+  public:
+    State_Vote(){
+      Serial.println("Poll was initiated by another client");
+      Serial.println("To accept poll press button, to deny long press");
+      ledBlink(); flagLEDBlink1 = true;
+    }
+    void shortPress(){
+      sendMessage("ACCEPT");
+      Serial.println("Voted yes on poll - Awaiting decision");
+      ledOn(); flagLEDBlink1 = false;
+      changeState(VOTED);
+    }
+    void longPress(){
+      Serial.println("Voted no on poll - Awaiting decision");
+      ledOff(); flagLEDBlink1 = false;
+      changeState(VOTED);
+    }
+    void finish(){}
+    State getValue(){ return VOTE; }
+};
+
+class State_Voted : public PollState{
+  public:
+    State_Voted(){}
+    void shortPress(){}
+    void longPress(){}
+    void finish(){}
+    State getValue(){ return VOTED; }
+};
+
+class State_Decided : public PollState{
+  public:
+    State_Decided(){
+      Serial.println("Decision made - Poll Accepted");
+      decisionTime = millis();
+      ledBlink(); flagLEDBlink0 = true;
+    }
+    void shortPress(){}
+    void longPress(){
+      if(initiator){
+        Serial.println("Cancelling Poll");
+        sendMessage("CLEAR");
+      }
+    }
+    void finish(){}
+    State getValue(){ return DECIDED; }
+};
+
+/* --- SETUP & SETUP_AUX METHODS --- */
 
 void setup(){
   Serial.begin(115200);
@@ -37,29 +255,33 @@ void setup(){
   String ssid = getStoredSSID();
   String pass = getStoredPassword();
 
-  bool foundMQTTBroker = false;
-  if(initWiFiConn(ssid, pass)) {
-    if(!MDNS.begin("ESP"))
+  for(int i = 0; !initWiFiConn(ssid, pass); i++){ if(i == 1) break; }
+  if(wifiConnected){
+    if(!MDNS.begin("ESP")){
       Serial.println("Error setting up mDNS responder");
+    }
     else {
       Serial.println("Finished setup of mDNS");
-      foundMQTTBroker = browseService("mqtt", "tcp");
+      for(int i = 0; !browseService("mqtt", "tcp"); i++){ if(i == 2) break; }
+      if(foundMQTTBroker){
+        client.setServer(serverIP, serverPort);
+        client.setCallback(callback);
+        for(int i = 0; !mqttConnect(); i++){ if(i == 2) break; }
+        if(mqttConnected){
+          client.subscribe(mqttTopic.c_str());
+          Serial.print("Client subscribed to topic "); Serial.print(mqttTopic);
+          Serial.println(" - Awaiting messages...");
+          pinMode(BUTTON_KEY, INPUT);
+          changeState(NOPOLL);
+        }
+        else
+          WiFi.disconnect();
+      }
+      else
+        WiFi.disconnect();
     }
   }
 
-  if(foundMQTTBroker) {
-    client.setServer(serverIP, serverPort);
-    client.setCallback(callback);
-    if(mqttConnect()) {
-      mqttConnected = true;
-      client.subscribe(mqttTopic.c_str());
-      Serial.print("Client subscribed to topic "); Serial.print(mqttTopic);
-      Serial.println(" - Awaiting messages...");
-      Serial.println("Press button > 3s to initiate poll");
-      pinMode(BUTTON_KEY, INPUT);
-    }
-  }
-  
   /* Close the Preferences */
   preferences.end();
 }
@@ -132,17 +354,18 @@ bool initWiFiConn(String ssid, String pass){
   }
   
   if(WiFi.status() == WL_CONNECTED) {
+    Serial.println();
     Serial.println("WiFi Connected.");     
     Serial.print("IP Address: ");
     myIP = WiFi.localIP();
     Serial.println(myIP);
     ledOn(10);
-    return true;
+    wifiConnected = true; return true;
   }
   else {
     Serial.println("Connection Attempt Failed");
     ledBlink(10, 1);
-    return false;
+    wifiConnected = false; return false;
   }
 }
 
@@ -151,7 +374,7 @@ bool browseService(const char * service, const char * proto){
     int n = MDNS.queryService(service, proto);
     if (n == 0) {
         Serial.println("No services found");
-        return false;
+        foundMQTTBroker = false; return false;
     }
     else {
         Serial.print(n);
@@ -168,144 +391,76 @@ bool browseService(const char * service, const char * proto){
             Serial.print(MDNS.port(i)); serverPort = MDNS.port(i);
             Serial.println(")");
         }
-        return true;
+        foundMQTTBroker = true; return true;
     }
 }
 
 bool mqttConnect(){
-  int i = 3;
-  String id = "ESP32_K"; id += i; 
-  if(client.connect(id.c_str(), mqttUsers[i-1].c_str(), mqttPswrd[i-1].c_str())) {
+  String id = "ESP32_K"; id += ARDUINO_N; 
+  if(client.connect(id.c_str(), mqttUsers[ARDUINO_N-1].c_str(), mqttPswrd[ARDUINO_N-1].c_str())) {
     Serial.println("Client " + id + " connected to server");
     Serial.println();
-    return true;
+    mqttConnected = true; return true;
   }
   else {
     Serial.println("Unable to connect to server");
-    return false;
+    WiFi.disconnect();
+    mqttConnected = false; return false;
   }
 }
 
-bool messageReceived = false;
-String payloadMsgRecv = "";
-
-const int LONG_PRESS = 3000;
-const int NO_COUNT_INPUT = 2000;
-
-int currButtonState = 0;          // Button's current state
-int lastButtonState = 1;          // Button's state in the last loop
-int timeStartPressed = 0;         // Time the button was pressed
-int timeEndPressed = 0;           // Time the button was released
-int timeHold = 0;                 // How long the button was held
-int timeReleased = 0;             // How long the button released
-
-bool initiator = false;           // Activates when the client is the one o initiates a poll
-bool pollActive = false;          // Activated when the client first realizes a poll is active
-bool initPoll = false;            // Activated when the client initiates the configuration of a poll
-bool countPresses = false;        // Activated when the client is deciding the minimum number of positives for poll success
-bool blinkEndInitPoll = false;    // Activated when the poll configuration finishes and the client must now wait for a decision
-bool decided = false;             // Activated when the client either accepts or denies the poll
-bool decisionMade = false;        // Activated when the poll has been completed and a decision made
-
-int nPollAccept = 0;              // Minimum number of positives for poll success
-int nAccept = 0;                  // Number of clients who accepted the poll
-int timeDecision = 0;             // Time the poll decision was made 
+/* --- LOOP & LOOP_AUX METHODS --- */
 
 void loop(){
   if(mqttConnected) {
     client.loop();
 
-    if(initiator && decisionMade) {
-      int decisionElapsedTime = millis() - timeDecision;
-      if(decisionElapsedTime >= 300000) {
-        sendMessage("CLEAR");
-        clearState();
+    currButtonState = digitalRead(BUTTON_KEY);
+    if(currButtonState != lastButtonState) {
+      updateButtonState();
+      if(currButtonState == HIGH && timeHold <= LONG_PRESS){
+        state->shortPress();
+      }
+      if(currButtonState == HIGH && timeHold >= LONG_PRESS){
+        state->longPress();
+      }
+    }
+    else {
+      updateButtonCounter();
+      if(state->getValue() == INITPOLL && timeReleased >= NO_COUNT_INPUT){
+        state->finish();
       }
     }
 
+    int ledChangeElapsedTime = millis() - timeLedChange;
+    if( (flagLEDBlink0 && ledChangeElapsedTime == 500) ||
+        (flagLEDBlink1 && ledChangeElapsedTime == 1000) ||
+        (flagLEDBlink2 && ledChangeElapsedTime == 2000) ){
+      ledBlink();
+    }
+
+
     if(messageReceived){
-      char *token;
-      char msg_a[payloadMsgRecv.length()]; payloadMsgRecv.toCharArray(msg_a, payloadMsgRecv.length());
-      String split[2];
-      token = strtok(msg_a, " ");
-      for(int i = 0; token != NULL; i++) {
-        split[i] = token;
-        token = strtok(NULL, " ");
+      if(payloadMsgRecv.substring(0,4) == "POLL" && state->getValue() == NOPOLL){
+        nPollAccept = payloadMsgRecv.substring(5).toInt();
+        changeState(VOTE);
       }
-      
-      String command(split[0]);
-      if(command == "POLL" && !pollActive){
-        Serial.println("Poll was initiated by another client");
-        Serial.println("To accept poll press button, to deny long press");
-        pollActive = true;
-        nPollAccept = atoi(split[1].c_str());
-        ledBlink(1);
+      if(payloadMsgRecv == "ACCEPT"){
+        incrementVotes();
       }
-      if(command == "ACCEPT"){
-        nAccept++;
-        if(nAccept == nPollAccept) {
-          Serial.println("Decision made - Poll Accepted");
-          ledBlink(0.5);
-          decisionMade = true; pollActive = false;
-          timeDecision = millis();
-        }
+      if(payloadMsgRecv == "CLEAR"){
+        Serial.println("Poll Cancelled by the host");
+        changeState(NOPOLL);
       }
-      if(command == "CLEAR")
-        clearState();
 
       messageReceived = false;
       payloadMsgRecv = "";
     }
 
-    currButtonState = digitalRead(BUTTON_KEY);
-    if(currButtonState != lastButtonState) {
-      updateButtonState();
-      if(initPoll) {
-        initPoll = false;
-        countPresses = true;
-        Serial.println("Press the number of positives needed for poll success");
-      }
-      if(countPresses && currButtonState == LOW){
-        nPollAccept++;
-        Serial.print("N Times Pressed: "); Serial.println(nPollAccept);
-      }
-      if(pollActive && !decided && currButtonState == LOW){
-        sendMessage("ACCEPT");
-        Serial.println("Voted yes on poll - Awaiting decision");
-        decided = true;
-        ledOn();
-      }
-    }
-    else {
-      updateButtonCounter();
-      if(timeHold >= LONG_PRESS && !pollActive && !initPoll && !countPresses) {
-        initPoll = true;
-        Serial.println("Initiating Poll Configuration");
-      }
-      if(timeReleased >= NO_COUNT_INPUT && countPresses) {
-        //if(nPollAccept != 0) {}
-        countPresses = false;
-        Serial.print("Total Times Pressed: "); Serial.println(nPollAccept);
-        ledBlink(nPollAccept, 1);
-        Serial.println("Poll Configuration Finished");
-
-        String message = "POLL "; message += nPollAccept;
-        sendMessage(message);
-        Serial.println("Poll Initiated - Awaiting decision");
-        initiator = true; pollActive = true; decided = true;
-        blinkEndInitPoll = true;
-      }
-      if(blinkEndInitPoll)
-        ledBlink(1);
-      if(timeHold >= LONG_PRESS && pollActive && !decided) {
-        Serial.println("Voted no on poll - Awaiting decision");
-        ledOff();
-        decided = true;
-      }
-      if(timeHold >= LONG_PRESS && pollActive && initiator) {
-        Serial.println("Cancelled Poll");
+    if(initiator && state->getValue() == DECIDED){
+      int decisionElapsedTime = millis() - decisionTime;
+      if(decisionElapsedTime >= 300000) {
         sendMessage("CLEAR");
-        clearState();
       }
     }
 
@@ -333,70 +488,33 @@ void updateButtonCounter(){
     timeReleased = millis() - timeEndPressed;           // Registers for how long the button has been released currently
 }
 
-void ledOn(){
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, HIGH);
+void changeState(State stt){
+  switch(stt){
+    case NOPOLL:
+      state = new State_NoPoll();
+      break;
+    case INITPOLL:
+      state = new State_InitPoll();
+      break;
+    case AWAITVOTES:
+      state = new State_AwaitVotes();
+      break;
+    case VOTE:
+      state = new State_Vote();
+      break;
+    case VOTED:
+      state = new State_Voted();
+      break;
+    case DECIDED:
+      state = new State_Decided();
+      break;
+   }
 }
 
-void ledOn(int nTime){
-  pinMode(LED_BUILTIN, OUTPUT);
-  int millis = nTime * 1000;
-  digitalWrite(LED_BUILTIN, HIGH); delay(millis); digitalWrite(LED_BUILTIN, LOW);
-}
-
-void ledOff(){
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, LOW);
-}
-
-void ledBlink(int nTimeAppart){
-  pinMode(LED_BUILTIN, OUTPUT);
-  int millis = nTimeAppart * 1000;
-  digitalWrite(LED_BUILTIN, HIGH); delay(millis); digitalWrite(LED_BUILTIN, LOW); delay(millis);
-}
-
-void ledBlink(int nTimes, int nTimeAppart){
-  pinMode(LED_BUILTIN, OUTPUT);
-  int millis = nTimeAppart * 1000;
-  for(int i = 0; i <= nTimes - 1; i++) {
-    digitalWrite(LED_BUILTIN, HIGH); delay(millis); digitalWrite(LED_BUILTIN, LOW); delay(millis);
+void incrementVotes(){
+  votes++;
+  Serial.print("Current Number of votes: "); Serial.println(votes);
+  if(votes == nPollAccept) {
+    changeState(DECIDED);
   }
-}
-
-void sendMessage(String message){
-  client.publish(mqttTopic.c_str(), message.c_str());
-  Serial.print("Message sent ["); Serial.print(mqttTopic); Serial.print("] "); 
-  Serial.println(message);
-}
-
-void clearState(){
-  bool initiator = false;          
-  bool pollActive = false;         
-  bool initPoll = false;           
-  bool countPresses = false;       
-  bool blinkEndInitPoll = false;   
-  bool decided = false;            
-  bool decisionMade = false;       
-
-  int nPollAccept = 0;             
-  int nAccept = 0;                 
-  int timeDecision = 0;
-
-  ledOff();
-
-  Serial.println();
-  Serial.println("Press button > 3s to initiate poll");
-}
-
-void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
-  for(int i = 0; i < length; i++) {
-    char c = (char)payload[i];
-    payloadMsgRecv += c;
-    Serial.print(c);
-  }
-  Serial.println();
-  messageReceived = true;
 }
