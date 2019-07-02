@@ -404,7 +404,6 @@ bool mqttConnect(){
   }
   else {
     Serial.println("Unable to connect to server");
-    WiFi.disconnect();
     mqttConnected = false; return false;
   }
 }
