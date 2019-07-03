@@ -5,6 +5,8 @@
 #include <BLEUtils.h>
 #include <BLEDevice.h>
 #include <BLEBeacon.h>
+#include <ctime>
+#include <sstream>
 
 /* --- GLOBAL VARIABLES --- */
 
@@ -18,7 +20,6 @@ const int LED_BUILTIN = 2;
 String recv_ssid;
 String recv_pass;
 
-IPAddress myIP;
 IPAddress serverIP; int serverPort;
 
 /* --- CONNECTION VARIABLES --- */
@@ -26,9 +27,9 @@ IPAddress serverIP; int serverPort;
 WiFiClient wifiClient;
 PubSubClient client(wifiClient);
 
-const String mqttUsers[] = {"tk3_esp1", "tk3_esp2", "tk3_esp3", "tk3_esp4"};
-const String mqttPswrd[] = {"esp1mqtt", "esp2mqtt", "esp3mqtt", "esp4mqtt"};
-const String mqttTopic = "laterator";
+const std::string mqttUsers[] = {"tk3_esp1", "tk3_esp2", "tk3_esp3", "tk3_esp4"};
+const std::string mqttPswrd[] = {"esp1mqtt", "esp2mqtt", "esp3mqtt", "esp4mqtt"};
+      std::string mqttTopic = "/laterator/beacons/" + uuids[ARDUINO_N-1]; 
 
 bool wifiConnected = false;
 bool foundMQTTBroker = false;
@@ -36,66 +37,56 @@ bool mqttConnected = false;
 
 /* --- BLE VARIABLES --- */
 
-const String uuids[] = {"178a09a8-200f-422c-ac98-ddea53704f19", 
-                        "c0db5460-16e1-4754-b56a-63cc5c042f47",
-                        "bc8131f0-b76b-4362-b4f5-a95bc6b4fa71",
-                        "df3a4416-8737-424c-b795-5066aacbff94"};
+const std::string uuids[] = {"178a09a8-200f-422c-ac98-ddea53704f19", 
+                             "c0db5460-16e1-4754-b56a-63cc5c042f47",
+                             "bc8131f0-b76b-4362-b4f5-a95bc6b4fa71",
+                             "df3a4416-8737-424c-b795-5066aacbff94"};
+
+const std::string positions[4][2] = {{"0", "0"}, {"0", "1"}, {"1", "0"}, {"1", "1"}};
 
 BLEAdvertising *bleAdv;
 
-/* --- SETUP & SETUP_AUX METHODS --- */
+/* --- AUXILIARY METHODS --- */
 
-void setup(){
-  Serial.begin(115200);
-  preferences.begin("iotk", false);
-  
-  delay(2000);
-  if(receiveCredentials() == true) {
-    storeCredentials();
-    ESP.restart();
-  }
-  else {
-    Serial.println("No WiFi Credentials were received");
-    Serial.println("Using WiFi Credentials stored in memory");
-  }
-
-  String ssid = getStoredSSID();
-  String pass = getStoredPassword();
-
-  for(int i = 0; !initWiFiConn(ssid, pass); i++){ if(i == 1) break; }
-  if(wifiConnected){
-    if(!MDNS.begin("ESP")){
-      Serial.println("Error setting up mDNS responder");
-    }
-    else {
-      Serial.println("Finished setup of mDNS");
-      for(int i = 0; !browseService("mqtt", "tcp"); i++){ if(i == 2) break; }
-      if(foundMQTTBroker){
-        client.setServer(serverIP, serverPort);
-        client.setCallback(callback);
-        for(int i = 0; !mqttConnect(); i++){ if(i == 2) break; }
-        if(!mqttConnected){
-          WiFi.disconnect();
-      }
-      else
-        WiFi.disconnect();
-    }
-  }
-
-  BLEDevice::init("");
-
-  bleAdv = BLEDevice::getAdvertising();
-
-  enableBeacon();
-  bleAdv->start();
-  Serial.println("Advertizing started...");
-  delay(100);
-  bleAdv->stop();
-  Serial.println("Advertizing stopped...");
-  
-  /* Close the Preferences */
-  preferences.end();
+void ledOn(){
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH);
 }
+
+void ledOn(int nTime){
+  pinMode(LED_BUILTIN, OUTPUT);
+  int millis = nTime * 1000;
+  digitalWrite(LED_BUILTIN, HIGH); delay(millis); digitalWrite(LED_BUILTIN, LOW);
+}
+
+void ledOff(){
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, LOW);
+}
+
+void ledBlink(){
+  pinMode(LED_BUILTIN, OUTPUT);
+  if(digitalRead(LED_BUILTIN) == HIGH)
+    digitalWrite(LED_BUILTIN, LOW);
+  else
+    digitalWrite(LED_BUILTIN, HIGH);
+}
+
+void ledBlink(int nTimes, int nTimeAppart){
+  pinMode(LED_BUILTIN, OUTPUT);
+  int millis = nTimeAppart * 1000;
+  for(int i = 0; i <= nTimes - 1; i++) {
+    digitalWrite(LED_BUILTIN, HIGH); delay(millis); digitalWrite(LED_BUILTIN, LOW); delay(millis);
+  }
+}
+
+void sendMessage(std::string message, std::string topic){
+  client.publish(topic.c_str(), message.c_str());
+  Serial.print("Message sent ["); Serial.print(topic.c_str()); Serial.print("] "); 
+  Serial.println(message.c_str());
+}
+
+/* --- SETUP & SETUP_AUX METHODS --- */
 
 bool receiveCredentials(){
   Serial.println();
@@ -154,7 +145,7 @@ bool initWiFiConn(String ssid, String pass){
   int count = 0;
   
   while(WiFi.status() != WL_CONNECTED) {
-    delay(1000);
+    delay(250);
     Serial.print(".");
 
     if(count == 20) {
@@ -168,14 +159,13 @@ bool initWiFiConn(String ssid, String pass){
     Serial.println();
     Serial.println("WiFi Connected.");     
     Serial.print("IP Address: ");
-    myIP = WiFi.localIP();
-    Serial.println(myIP);
-    ledOn(10);
+    Serial.println(WiFi.localIP());
+    ledBlink(2, 0.5);
     wifiConnected = true; return true;
   }
   else {
     Serial.println("Connection Attempt Failed");
-    ledBlink(10, 1);
+    ledBlink(2, 1);
     wifiConnected = false; return false;
   }
 }
@@ -221,24 +211,69 @@ bool mqttConnect(){
 
 void enableBeacon(){
   BLEBeacon beacon = BLEBeacon();
-  beacon.setManufacturerId(0x2F07);                       // Fake OnePlus 0x072F
+  beacon.setManufacturerId(0x4C00); 
   beacon.setProximityUUID(BLEUUID(uuids[ARDUINO_N-1]));
-  beacon.setMajor(0x‭024B);                                // 19202 0x‭4B02‬
-  beacon.setMinor(0x5104);                                // 1105  0x0451
+  beacon.setMajor(0x4B02);              // 19202 0x‭4B02‬
+  beacon.setMinor(0x5104);              // 1105  0x0451
 
   BLEAdvertisementData advData = BLEAdvertisementData();
   BLEAdvertisementData scanRespData = BLEAdvertisementData();
 
   advData.setFlags(0x04);
 
-  String serviceData = "";
-  serviceData += (char)26;                                // Len
-  serviceData += (char)0xFF;                              // Type
+  std::string serviceData = "";
+  serviceData += (char)26;              // Len
+  serviceData += (char)0xFF;            // Type
   serviceData += beacon.getData(); 
   advData.addData(serviceData);
 
   bleAdv->setAdvertisementData(advData);
   bleAdv->setScanResponseData(scanRespData);
+}
+
+void setup(){
+  Serial.begin(115200);
+  preferences.begin("iotk", false);
+  
+  delay(2000);
+  if(receiveCredentials() == true) {
+    storeCredentials();
+    ESP.restart();
+  }
+  else {
+    Serial.println("No WiFi Credentials were received");
+    Serial.println("Using WiFi Credentials stored in memory");
+  }
+
+  String ssid = getStoredSSID();
+  String pass = getStoredPassword();
+
+  for(int i = 0; !initWiFiConn(ssid, pass); i++){ if(i == 1) break; }
+  if(wifiConnected){
+    if(!MDNS.begin("ESP")){
+      Serial.println("Error setting up mDNS responder");
+    }
+    else {
+      Serial.println("Finished setup of mDNS");
+      for(int i = 0; !browseService("mqtt", "tcp"); i++){ if(i == 2) break; }
+      if(foundMQTTBroker){
+        client.setServer(serverIP, serverPort);
+        for(int i = 0; !mqttConnect(); i++){ if(i == 2) break; }
+        if(!mqttConnected)
+          WiFi.disconnect();
+      }
+      else
+        WiFi.disconnect();
+    }
+  }
+
+  BLEDevice::init("");
+  //BLEDevice::setPower();
+  bleAdv = BLEDevice::getAdvertising();
+  enableBeacon();
+
+  /* Close the Preferences */
+  preferences.end();
 }
 
 /* --- LOOP & LOOP_AUX METHODS --- */
@@ -247,58 +282,23 @@ void loop(){
   if(mqttConnected) {
     client.loop();
   }
-}
+  bleAdv->start();
+  Serial.println("Advertizing started...");
+  delay(500);
+  bleAdv->stop();
+  Serial.println("Advertizing stopped...");
 
-/* --- AUXILIARY METHODS --- */
+  std::string topic = mqttTopic + "/name";
+  sendMessage(mqttUsers[ARDUINO_N-1], topic);
 
-void ledOn(){
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, HIGH);
-}
+  topic = mqttTopic + "/lastActivity";
+  std::time_t unixTimestamp = std::time(nullptr);
+  std::stringstream ss; ss << unixTimestamp;
+  sendMessage(ss.str(), topic);
 
-void ledOn(int nTime){
-  pinMode(LED_BUILTIN, OUTPUT);
-  int millis = nTime * 1000;
-  digitalWrite(LED_BUILTIN, HIGH); delay(millis); digitalWrite(LED_BUILTIN, LOW);
-}
+  topic = mqttTopic + "/x";
+  sendMessage(positions[ARDUINO_N-1][0], topic);
 
-void ledOff(){
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, LOW);
-}
-
-void ledBlink(){
-  pinMode(LED_BUILTIN, OUTPUT);
-  if(digitalRead(LED_BUILTIN) == HIGH)
-    digitalWrite(LED_BUILTIN, LOW);
-  else
-    digitalWrite(LED_BUILTIN, HIGH);
-  timeLedChange = millis();
-}
-
-void ledBlink(int nTimes, int nTimeAppart){
-  pinMode(LED_BUILTIN, OUTPUT);
-  int millis = nTimeAppart * 1000;
-  for(int i = 0; i <= nTimes - 1; i++) {
-    digitalWrite(LED_BUILTIN, HIGH); delay(millis); digitalWrite(LED_BUILTIN, LOW); delay(millis);
-  }
-}
-
-void sendMessage(String message){
-  client.publish(mqttTopic.c_str(), message.c_str());
-  Serial.print("Message sent ["); Serial.print(mqttTopic); Serial.print("] "); 
-  Serial.println(message);
-}
-
-void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
-  for(int i = 0; i < length; i++) {
-    char c = (char)payload[i];
-    payloadMsgRecv += c;
-    Serial.print(c);
-  }
-  Serial.println();
-  messageReceived = true;
+  topic = mqttTopic + "/y";
+  sendMessage(positions[ARDUINO_N-1][1], topic);
 }
