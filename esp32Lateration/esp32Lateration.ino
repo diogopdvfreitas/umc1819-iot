@@ -5,6 +5,7 @@
 #include <BLEUtils.h>
 #include <BLEDevice.h>
 #include <BLEBeacon.h>
+#include "time.h"
 #include <ctime>
 #include <sstream>
 
@@ -22,6 +23,12 @@ String recv_pass;
 
 IPAddress serverIP; int serverPort;
 
+/* --- TIME VARIABLES --- */
+
+const char* ntpServer = "pool.ntp.org";
+const long  gmtOffset_sec = 3600;
+const int   daylightOffset_sec = 3600;
+
 /* --- CONNECTION VARIABLES --- */
 
 WiFiClient wifiClient;
@@ -29,7 +36,6 @@ PubSubClient client(wifiClient);
 
 const std::string mqttUsers[] = {"tk3_esp1", "tk3_esp2", "tk3_esp3", "tk3_esp4"};
 const std::string mqttPswrd[] = {"esp1mqtt", "esp2mqtt", "esp3mqtt", "esp4mqtt"};
-      std::string mqttTopic = "/laterator/beacons/" + uuids[ARDUINO_N-1]; 
 
 bool wifiConnected = false;
 bool foundMQTTBroker = false;
@@ -78,6 +84,12 @@ void ledBlink(int nTimes, int nTimeAppart){
   for(int i = 0; i <= nTimes - 1; i++) {
     digitalWrite(LED_BUILTIN, HIGH); delay(millis); digitalWrite(LED_BUILTIN, LOW); delay(millis);
   }
+}
+
+time_t updateTime(){
+  struct tm timeinfo;
+  getLocalTime(&timeinfo);
+  return mktime(&timeinfo);
 }
 
 void sendMessage(std::string message, std::string topic){
@@ -214,7 +226,8 @@ void enableBeacon(){
   beacon.setManufacturerId(0x4C00); 
   beacon.setProximityUUID(BLEUUID(uuids[ARDUINO_N-1]));
   beacon.setMajor(0x4B02);              // 19202 0x‭4B02‬
-  beacon.setMinor(0x5104);              // 1105  0x0451
+  beacon.setMinor(0x0451);              // 1105  0x0451
+  beacon.setSignalPower(-57);
 
   BLEAdvertisementData advData = BLEAdvertisementData();
   BLEAdvertisementData scanRespData = BLEAdvertisementData();
@@ -250,6 +263,8 @@ void setup(){
 
   for(int i = 0; !initWiFiConn(ssid, pass); i++){ if(i == 1) break; }
   if(wifiConnected){
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    Serial.println(updateTime());
     if(!MDNS.begin("ESP")){
       Serial.println("Error setting up mDNS responder");
     }
@@ -268,13 +283,17 @@ void setup(){
   }
 
   BLEDevice::init("");
-  //BLEDevice::setPower();
+  // BLEDevice::setPower(ESP_PWR_LVL_N14);
   bleAdv = BLEDevice::getAdvertising();
   enableBeacon();
 
   /* Close the Preferences */
   preferences.end();
 }
+
+/* --- LOOP VARIABLES --- */
+
+std::string mqttTopic = "/laterator/beacons/" + uuids[ARDUINO_N-1];
 
 /* --- LOOP & LOOP_AUX METHODS --- */
 
@@ -283,10 +302,8 @@ void loop(){
     client.loop();
   }
   bleAdv->start();
-  Serial.println("Advertizing started...");
   delay(500);
   bleAdv->stop();
-  Serial.println("Advertizing stopped...");
 
   std::string topic = mqttTopic + "/name";
   sendMessage(mqttUsers[ARDUINO_N-1], topic);
