@@ -300,22 +300,23 @@ std::string mqttTopic = "/laterator/beacons/" + uuids[ARDUINO_N-1];
 void loop(){
   if(mqttConnected) {
     client.loop();
+
+    bleAdv->start();
+    delay(500);
+    bleAdv->stop();
+
+    std::string topic = mqttTopic + "/name";
+    sendMessage(mqttUsers[ARDUINO_N-1], topic);
+
+    topic = mqttTopic + "/lastActivity";
+    std::time_t unixTimestamp = std::time(nullptr);
+    std::stringstream ss; ss << unixTimestamp;
+    sendMessage(ss.str(), topic);
+
+    topic = mqttTopic + "/x";
+    sendMessage(positions[ARDUINO_N-1][0], topic);
+
+    topic = mqttTopic + "/y";
+    sendMessage(positions[ARDUINO_N-1][1], topic);
   }
-  bleAdv->start();
-  delay(500);
-  bleAdv->stop();
-
-  std::string topic = mqttTopic + "/name";
-  sendMessage(mqttUsers[ARDUINO_N-1], topic);
-
-  topic = mqttTopic + "/lastActivity";
-  std::time_t unixTimestamp = std::time(nullptr);
-  std::stringstream ss; ss << unixTimestamp;
-  sendMessage(ss.str(), topic);
-
-  topic = mqttTopic + "/x";
-  sendMessage(positions[ARDUINO_N-1][0], topic);
-
-  topic = mqttTopic + "/y";
-  sendMessage(positions[ARDUINO_N-1][1], topic);
 }
