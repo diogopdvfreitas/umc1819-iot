@@ -3,6 +3,9 @@ package com.example.testapplication;
 
 import android.os.Bundle;
 import android.util.Log;
+import android.util.TypedValue;
+import android.view.View;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -22,7 +25,7 @@ public class MainActivity extends AppCompatActivity /*implements BeaconConsumer*
 {
     ArrayList<String> beaconUUID = new ArrayList<>();
     ArrayList<BeaconInfo>  beacons = new ArrayList<>();
-    //ArrayList<DrawSquares> beacons = new ArrayList<>();
+
     int lastActiveState;
     int systemTime;
     int index;
@@ -36,7 +39,7 @@ public class MainActivity extends AppCompatActivity /*implements BeaconConsumer*
     {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        final DrawSquares drawSquares = new DrawSquares(this);
+
 
 
         MqttConnection mqttConnection = new MqttConnection(this);
@@ -74,11 +77,11 @@ public class MainActivity extends AppCompatActivity /*implements BeaconConsumer*
                     text_noBeacons.setText(noBeacons);
                 }
 
+                index = beaconUUID.indexOf(parts[3]);
+
                 //We will update the values according to the messages we recieve
                 if ("name".equals(parts[4]))
                 {
-                    index = beaconUUID.indexOf(parts[3]);
-
                     BeaconInfo aux = beacons.get(index);
                     aux.mName = message.toString();
                     beacons.set(index, aux);
@@ -89,17 +92,12 @@ public class MainActivity extends AppCompatActivity /*implements BeaconConsumer*
                 }
                 else if("lastActivity".equals(parts[4]))
                 {
-
-                    index = beaconUUID.indexOf(parts[3]);
-
                     lastActiveState = Integer.parseInt(message.toString());
                     systemTime = ((int) System.currentTimeMillis() / 1000);
 
                     //Removes The View, and the corresponding beacons in the beaconUUID and beacon lists
                     if (systemTime - lastActiveState > 30)
                     {
-                        BeaconInfo aux = beacons.get(index);
-
                         //((ViewManager)aux.getParent()).removeView(aux);
                         beacons.remove(index);
                         noBeacons--;
@@ -108,16 +106,69 @@ public class MainActivity extends AppCompatActivity /*implements BeaconConsumer*
                 else if ("x".equals(parts[4]))
                 {
                     BeaconInfo aux = beacons.get(index);
-                    aux.mX = Integer.parseInt(message.toString()) * 200;
-                    Log.w("X", "X COORDINATE " + aux.mX);
+                    //Multiply by the dimensions of or canvas
+                    aux.mX = Integer.parseInt(message.toString()) * dpToPixels(295);
                     beacons.set(index, aux);
                 }
                 else if ("y".equals(parts[4]))
                 {
                     BeaconInfo aux = beacons.get(index);
-                    aux.mY = Integer.parseInt(message.toString()) * 200;
+                    //Multiply by the dimensions of our canvas
+                    aux.mY = Integer.parseInt(message.toString()) * dpToPixels(295);
                     beacons.set(index, aux);
+
+                    View v = findViewById(index);
+
+                    Log.w("Y VALUE", "Y VALUE BEFOR IS " + aux.mY);
+                    Log.w("X VALUE", "X VALUE BEFORE IS " + aux.mX);
+
+                    //If it's a new beacon connecting we add it to the parent view
+                    if (v == null)
+                    {
+                        Log.w("WHERE", "NULL NULL NULL ");
+                        RelativeLayout parent = findViewById(R.id.parent);
+                        View view = new DrawSquares(MainActivity.this);
+                        view.generateViewId();
+                        view.setId(index);
+
+                        //RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(dpToPixels(300), dpToPixels(300));
+                        RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(dpToPixels(300), dpToPixels(300));
+                        params.addRule(RelativeLayout.CENTER_HORIZONTAL);
+                        params.addRule(RelativeLayout.CENTER_VERTICAL);
+                        params.addRule(RelativeLayout.ALIGN_START);
+
+
+                        view.setLayoutParams(params);
+
+                        parent.addView(view);
+
+                        DrawSquares drawSquares  = findViewById(index);
+                        drawSquares.mY = aux.mY;
+                        drawSquares.mX = aux.mX;
+
+                        view.invalidate();
+
+                    }
+                    //If not, we simply update its valies
+                    else
+                    {
+                        Log.w("WHERE", "NOT NULL NOT NULL NOT NULL ");
+                        DrawSquares drawSquares = findViewById(index);
+
+                        drawSquares.mY = aux.mY;
+                        drawSquares.mX = aux.mX;
+
+                        v = drawSquares;
+                        v.invalidate();
+                    }
+
+
+
+
+
+
                 }
+
             }
 
             @Override
@@ -164,6 +215,15 @@ public class MainActivity extends AppCompatActivity /*implements BeaconConsumer*
         {}
 
     }   */
+
+    public int dpToPixels(int dp)
+    {
+        int pixels;
+
+        pixels = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, getResources().getDisplayMetrics());
+
+        return pixels;
+    }
 
 
 }

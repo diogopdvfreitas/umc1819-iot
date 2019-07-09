@@ -6,6 +6,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.util.AttributeSet;
+import android.util.TypedValue;
 import android.view.View;
 
 import androidx.annotation.Nullable;
@@ -16,45 +17,42 @@ public class DrawSquares extends View
     private Rect mSquare;
     private Paint mPaintSquare;
 
-    public int mX;
-    public int mY;
+    public int mX = 0;
+    public int mY = 0;
 
 
     public DrawSquares(Context context)
     {
         super(context);
-
         init(null);
+        //moveToMain(context);
     }
 
     public DrawSquares(Context context, AttributeSet attrs)
     {
         super(context, attrs);
-
-
-
         init(attrs);
+       // moveToMain(context);
     }
 
     public DrawSquares(Context context, AttributeSet attrs, int defStyleAttr)
     {
         super(context, attrs, defStyleAttr);
-
-
         init(attrs);
+        //moveToMain(context);
     }
 
     public DrawSquares(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes)
     {
         super(context, attrs, defStyleAttr, defStyleRes);
-
-
-
         init(attrs);
+        //moveToMain(context);
+
     }
 
     private void init(@Nullable AttributeSet set)
     {
+
         mSquare = new Rect();
         mPaintSquare = new Paint(Paint.ANTI_ALIAS_FLAG);
     }
@@ -64,11 +62,20 @@ public class DrawSquares extends View
     {
         mSquare.left = mX;
         mSquare.top = mY;
-        mSquare.right = mSquare.left + 20;
-        mSquare.bottom = mSquare.top + 20;
+        mSquare.right = mSquare.left + dpToPixels(5);
+        mSquare.bottom = mSquare.top + dpToPixels(5);
 
         mPaintSquare.setColor(Color.GREEN);
         canvas.drawRect(mSquare, mPaintSquare);
+    }
+
+    public int dpToPixels(int dp)
+    {
+        int pixels;
+
+        pixels = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, getResources().getDisplayMetrics());
+
+        return pixels;
     }
 }
 

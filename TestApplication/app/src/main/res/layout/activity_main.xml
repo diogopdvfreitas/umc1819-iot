@@ -11,29 +11,28 @@
     android:paddingBottom="16dp"
     tools:context=".MainActivity" >
 
-    <TextView
-        android:layout_width="300dp"
-        android:layout_height="300dp"
-        android:background="@android:color/darker_gray"
-
-        android:layout_centerHorizontal="true"
-        android:layout_centerVertical="true" />
-
     <com.example.testapplication.CustomViews.DrawSquares
-        android:id="@+id/beaconLocation"
-
         android:layout_width="300dp"
         android:layout_height="300dp"
-
         android:layout_centerHorizontal="true"
-        android:layout_centerVertical="true" />
+        android:layout_centerVertical="true"
+        />
+
+
+    <TextView
+        android:id="@+id/map"
+        android:layout_width="300dp"
+        android:layout_height="300dp"
+        android:layout_centerVertical="true"
+        android:layout_centerHorizontal="true"
+        android:background="@android:color/darker_gray" />
 
 
     <TextView
         android:id="@+id/textBeaconsActive"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_below="@id/beaconLocation"
+        android:layout_below="@id/map"
         android:layout_toRightOf="@id/noBeaconsActive"
 
         android:text=" Beacons Currently Active" />
@@ -42,7 +41,7 @@
         android:id="@+id/noBeaconsActive"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_below="@id/beaconLocation"
+        android:layout_below="@id/map"
 
         android:text="NUMBER OF BEACONS HERE" />
 
