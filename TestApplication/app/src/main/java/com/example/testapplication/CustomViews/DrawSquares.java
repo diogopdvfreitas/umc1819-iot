@@ -17,36 +17,34 @@ public class DrawSquares extends View
     private Rect mSquare;
     private Paint mPaintSquare;
 
+    public String mName;
     public int mX = 0;
     public int mY = 0;
+    public int mViewId;
 
 
     public DrawSquares(Context context)
     {
         super(context);
         init(null);
-        //moveToMain(context);
     }
 
     public DrawSquares(Context context, AttributeSet attrs)
     {
         super(context, attrs);
         init(attrs);
-       // moveToMain(context);
     }
 
     public DrawSquares(Context context, AttributeSet attrs, int defStyleAttr)
     {
         super(context, attrs, defStyleAttr);
         init(attrs);
-        //moveToMain(context);
     }
 
     public DrawSquares(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes)
     {
         super(context, attrs, defStyleAttr, defStyleRes);
         init(attrs);
-        //moveToMain(context);
 
     }
 
@@ -77,5 +75,6 @@ public class DrawSquares extends View
 
         return pixels;
     }
+
 }
 
