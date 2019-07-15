@@ -1,10 +1,12 @@
 package com.example.testapplication;
 
+import android.graphics.Color;
 import android.os.Bundle;
 import android.os.RemoteException;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.View;
+import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
@@ -48,7 +50,6 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer
     int systemTime;                                             // Present system time
     int noBeacons = 0;                                          // Total number of beacons
 
-    //UUID uuid = UUID.randomUUID();                            // This smartphone's randomly generated UUID
     String uuid = "cb7fe7ff-cf91-47bb-914b-09211db823af";
     String topic = "/laterator/devices/" + uuid + "/";
 
@@ -59,9 +60,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer
     double bleDistance;
 
     MqttConnection mqttConnection;
-
-
-
+    
     @Override
     protected void onCreate(Bundle savedInstanceState)
     {
@@ -98,17 +97,22 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer
                 //Instantiate a view variable to display the number of active beacons
                 TextView text_noBeacons = findViewById(R.id.noBeaconsActive);
 
-                //If it's the first time the beacon connects, we add it to the beacon lists
+                //If it's the first time the beacon connects, we add it to the beacon Map
                 if (!beaconMap.containsKey(parts[3]))
                 {
                     beaconMap.put(parts[3], new DrawSquares(MainActivity.this));
-
                     DrawSquares aux = beaconMap.get(parts[3]);
+
                     aux.mViewId = noBeacons;
+
+                    beaconMap.put(parts[3], aux);
                     noBeacons++;
 
+                    aux = beaconMap.get(parts[3]);
+
                     //Set the number of beacons
-                    text_noBeacons.setText(noBeacons);
+                    text_noBeacons.setText("");
+                    text_noBeacons.append("" + noBeacons);
                     //Redraw the view
                     text_noBeacons.invalidate();
                 }
@@ -118,8 +122,39 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer
                 if ("name".equals(parts[4]))
                 {
                     DrawSquares aux = beaconMap.get(parts[3]);
-                    aux.mName = parts[4];
+                    aux.mName = message.toString();
                     beaconMap.put(parts[3], aux);
+
+
+                    //Add names to the UI
+                    //Beacon 1
+                    if (aux.mX == 0 && aux.mY == 0)
+                    {
+                        TextView view = findViewById(R.id.beacon1);
+                        view.setText(aux.mName);
+                        view.invalidate();
+                    }
+                    //Beacon 2
+                    else if (aux.mX == 0 && aux.mY == dpToPixels(295))
+                    {
+                        TextView view = findViewById(R.id.beacon2);
+                        view.setText(aux.mName);
+                        view.invalidate();
+                    }
+                    //Beacon 4
+                    else if (aux.mX == dpToPixels(295) && aux.mY == 0)
+                    {
+                        TextView view = findViewById(R.id.beacon4);
+                        view.setText(aux.mName);
+                        view.invalidate();
+                    }
+                    //Beacon 3
+                    else if (aux.mX == (6 * dpToPixels(295)/10) && aux.mY == dpToPixels(295))
+                    {
+                        TextView view = findViewById(R.id.beacon3);
+                        view.setText(aux.mName);
+                        view.invalidate();
+                    }
                 }
                 //Will only remove smartphones
                 else if("lastActivity".equals(parts[4]) && "devices".equals(parts[2]))
@@ -143,8 +178,8 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer
                 {
                     DrawSquares aux = beaconMap.get(parts[3]);
 
-                    //Multiply by the dimensions of our canvas
-                    aux.mX = Integer.parseInt(message.toString()) * dpToPixels(295);
+                    //Multiply by the dimensions of our canvas, divided by 10 to comply with the coordinates of the exercise
+                    aux.mX = Integer.parseInt(message.toString()) * dpToPixels(295) / 10;
                     beaconMap.put(parts[3], aux);
                 }
                 else if ("y".equals(parts[4]))
@@ -152,8 +187,11 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer
                     DrawSquares aux = beaconMap.get(parts[3]);
 
                     //Multiply by the dimensions of our canvas
-                    aux.mY = Integer.parseInt(message.toString()) * dpToPixels(295);
+                    aux.mY = (10 - Integer.parseInt(message.toString())) * dpToPixels(295) / 10;
+                    aux.color = "green";
+                    aux.mPaintSquare.setColor(Color.GREEN);
                     beaconMap.put(parts[3], aux);
+
 
                     //Only draws here, at the most updated value for the coordinates
                     drawView(aux);
@@ -190,6 +228,9 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer
                 //Only display smartphone coordinates if we have more than 3 beacons available
                 if (beacons.size() > 2 && noBeacons > 2)
                 {
+                    positions  = new ArrayList<>();         // Position ArrayList, to use in Trilateration
+                    distances =  new ArrayList<>();           // Distance ArrayList, to use in Trilateration
+
                     //Different iterators for different data
                     Iterator<Beacon> distanceIt = beacons.iterator();
                     Iterator<Beacon> uuidIt = beacons.iterator();
@@ -213,12 +254,21 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer
                         }
                     }
 
+
                     double[][] posInput = doubleListToArray(positions);
                     double[] disInput = listToArray(distances);
 
                     //Just in case the beacon scanned is not in our beacon map yet
                     if (disInput.length > 2)
                     {
+                        TextView text_distances = findViewById(R.id.distanceBeacons);
+
+                        text_distances.setText((int) disInput[0] + "m");
+                        for (int i = 1; i < disInput.length; i++)
+                            text_distances.append(", " + (int) disInput[i] + "m");
+
+                        //text_distances.invalidate();
+
                         NonLinearLeastSquaresSolver solver = new NonLinearLeastSquaresSolver(new TrilaterationFunction(posInput, disInput), new LevenbergMarquardtOptimizer());
                         LeastSquaresOptimizer.Optimum optimum = solver.solve();
 
@@ -228,19 +278,97 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer
                         //Smartphone coordinates are added/updated
                         if (!beaconMap.containsKey(uuid))
                         {
-                            DrawSquares aux = new DrawSquares(MainActivity.this);
+                            beaconMap.put(uuid, new DrawSquares(MainActivity.this));
+                            DrawSquares aux = beaconMap.get(uuid);
 
                             aux.mX = (int) centroid[0];
                             aux.mY = (int) centroid[1];
-                            aux.mViewId = noBeacons;
                             aux.mName = "OnePlus";
-
-                            beaconMap.put(uuid, aux);
+                            aux.mViewId = noBeacons;
                             noBeacons++;
 
+                            //The icons will rotate between these five colors
+                            if (aux.mViewId % 5 == 0)
+                            {
+                                aux.mPaintSquare.setColor(Color.BLUE);
+                                aux.color = "blue";
+
+                                LinearLayout parent = findViewById(R.id.smartphone_ids);
+                                TextView view = new TextView(MainActivity.this);
+                                view.setText("Blue: ");
+                                view.append(aux.mName);
+                                view.generateViewId();
+                                view.setId(aux.mViewId*100);
+                                view.setTextColor(Color.BLUE);
+                                parent.addView(view);
+                            }
+                            else if (aux.mViewId % 5 == 1)
+                            {
+                                aux.mPaintSquare.setColor(Color.RED);
+                                aux.color = "red";
+
+                                LinearLayout parent = findViewById(R.id.smartphone_ids);
+                                TextView view = new TextView(MainActivity.this);
+                                view.setText("Red: ");
+                                view.append(aux.mName);
+                                view.setId(aux.mViewId*100);
+                                view.setTextColor(Color.RED);
+                                parent.addView(view);
+                            }
+                            else if (aux.mViewId % 5 == 2)
+                            {
+                                aux.mPaintSquare.setColor(Color.YELLOW);
+                                aux.color = "yellow";
+
+                                LinearLayout parent = findViewById(R.id.smartphone_ids);
+                                TextView view = new TextView(MainActivity.this);
+                                view.setText("Yellow: ");
+                                view.append(aux.mName);
+                                view.setId(aux.mViewId*100);
+                                view.setTextColor(Color.YELLOW);
+                                parent.addView(view);
+                            }
+                            else if (aux.mViewId % 5 == 3)
+                            {
+                                aux.mPaintSquare.setColor(Color.MAGENTA);
+                                aux.color = "magenta";
+
+                                LinearLayout parent = findViewById(R.id.smartphone_ids);
+                                TextView view = new TextView(MainActivity.this);
+                                view.setText("Magenta: ");
+                                view.append(aux.mName);
+                                view.setId(aux.mViewId*100);
+                                view.setTextColor(Color.MAGENTA);
+                                parent.addView(view);
+                            }
+                            else if (aux.mViewId % 5 == 4)
+                            {
+                                aux.mPaintSquare.setColor(Color.BLACK);
+                                aux.color = "black";
+
+                                LinearLayout parent = findViewById(R.id.smartphone_ids);
+                                TextView view = new TextView(MainActivity.this);
+                                view.setText("Black: ");
+                                view.append(aux.mName);
+                                view.setId(aux.mViewId*100);
+                                view.setTextColor(Color.BLACK);
+                                parent.addView(view);
+                            }
+
+
+                            beaconMap.put(uuid, aux);
+
+                            //Draw then update the color
+                            drawView(aux);
+                            View view_phone = findViewById(aux.mViewId);
+                            view_phone.invalidate();
+
+                            smartphoneX = ((double) aux.mX / (double) dpToPixels(295))*10;
+                            smartphoneY = 10 - ((double) (10*aux.mY)/(double) (dpToPixels(295)));
+
                             //Publish (x,y) coordinates, lastActivity and name through MQTT
-                            mqttPublish(topic + "x", "" + (double) aux.mX / (double) dpToPixels(295));
-                            mqttPublish(topic + "y", "" + (double) aux.mY / (double) dpToPixels(295));
+                            mqttPublish(topic + "x", "" +smartphoneX);
+                            mqttPublish(topic + "y", "" + smartphoneY);
                             mqttPublish(topic + "lastActivity", "" + ((int) System.currentTimeMillis() / 1000));
                             mqttPublish("/laterator/beacons/" + uuid + "/name", aux.mName);
 
@@ -254,12 +382,12 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer
                             aux.mY = (int) centroid[1];
                             aux.mName = "OnePlus";
 
-                            smartphoneX = (double) aux.mX / (double) dpToPixels(295);
-                            smartphoneY = (double) aux.mY / (double) dpToPixels(295);
+                            smartphoneX = ((double) aux.mX / (double) dpToPixels(295))*10;
+                            smartphoneY = 10 - ((double) (10*aux.mY)/(double) (dpToPixels(295)));
 
                             //Publish (x,y) coordinates, lastActivity and name through MQTT
-                            mqttPublish(topic + "x", "" + (double) aux.mX / (double) dpToPixels(295));
-                            mqttPublish(topic + "y", "" + (double) aux.mY / (double) dpToPixels(295));
+                            mqttPublish(topic + "x", "" + smartphoneX);
+                            mqttPublish(topic + "y", "" + smartphoneY);
                             mqttPublish(topic + "lastActivity", "" + ((int) System.currentTimeMillis() / 1000));
                             mqttPublish("/laterator/beacons/" + uuid + "/name", aux.mName);
 
@@ -312,9 +440,12 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer
             DrawSquares drawSquares  = findViewById(aux.mViewId);
             drawSquares.mY = aux.mY;
             drawSquares.mX = aux.mX;
+            drawSquares.mPaintSquare = aux.mPaintSquare;
+            drawSquares.mViewId = aux.mViewId;
+            drawSquares.mName = aux.mName;
+            drawSquares.color = aux.color;
 
             view.invalidate();
-
 
         }
         //If not, we simply update its values
@@ -324,6 +455,10 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer
 
             drawSquares.mY = aux.mY;
             drawSquares.mX = aux.mX;
+            drawSquares.mPaintSquare = aux.mPaintSquare;
+            drawSquares.mViewId = aux.mViewId;
+            drawSquares.mName = aux.mName;
+            drawSquares.color = aux.color;
 
             v = drawSquares;
             v.invalidate();
@@ -388,8 +523,6 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer
     {
         byte[] encodedPayload = new byte[0];
 
-        Log.i("Where", "Topic " + topic);
-        Log.i("Where", "Message " + payload);
 
         try
         {

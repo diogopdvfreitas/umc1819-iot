@@ -15,12 +15,12 @@ import androidx.annotation.Nullable;
 public class DrawSquares extends View
 {
     private Rect mSquare;
-    private Paint mPaintSquare;
-
+    public Paint mPaintSquare;
     public String mName;
+    public  String color;
     public int mX = 0;
     public int mY = 0;
-    public int mViewId;
+    public int mViewId = -1;
 
 
     public DrawSquares(Context context)
@@ -63,7 +63,10 @@ public class DrawSquares extends View
         mSquare.right = mSquare.left + dpToPixels(5);
         mSquare.bottom = mSquare.top + dpToPixels(5);
 
-        mPaintSquare.setColor(Color.GREEN);
+        if (mViewId == -1)
+            mPaintSquare.setColor(Color.GREEN);
+
+
         canvas.drawRect(mSquare, mPaintSquare);
     }
 

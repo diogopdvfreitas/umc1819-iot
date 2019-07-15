@@ -5,8 +5,8 @@
     android:id="@+id/parent"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:paddingLeft="16dp"
-    android:paddingTop="16dp"
+    android:paddingLeft="0dp"
+    android:paddingTop="0dp"
     android:paddingRight="16dp"
     android:paddingBottom="16dp"
     tools:context=".MainActivity" >
@@ -16,7 +16,62 @@
         android:layout_height="300dp"
         android:layout_centerHorizontal="true"
         android:layout_centerVertical="true"
-        />
+                                                        />
+
+    <LinearLayout
+        android:id="@+id/smartphone_ids"
+        android:layout_width="364dp"
+        android:layout_height="88dp"
+        android:orientation="vertical"
+        android:layout_below="@id/textDistanceBeacons"
+        android:layout_alignParentStart="true"
+        android:layout_marginStart="30dp"
+        android:layout_marginTop="5dp">
+
+
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/beacon1"
+        android:layout_width="91dp"
+        android:layout_height="17dp"
+        android:layout_above="@+id/map"
+        android:layout_marginRight="-60dp"
+        android:layout_marginBottom="7dp"
+        android:layout_toLeftOf="@+id/map"
+        android:textSize="12dp" />
+
+
+    <TextView
+        android:id="@+id/beacon4"
+        android:layout_width="84dp"
+        android:layout_height="wrap_content"
+        android:layout_alignTop="@+id/map"
+        android:layout_marginStart="-43dp"
+        android:layout_marginTop="-21dp"
+        android:layout_toEndOf="@+id/map"
+        android:textSize="12dp" />
+
+    <TextView
+        android:id="@+id/beacon3"
+        android:layout_width="68dp"
+        android:layout_height="27dp"
+        android:layout_alignBottom="@+id/map"
+        android:layout_marginStart="-117dp"
+        android:layout_marginTop="526dp"
+        android:layout_marginEnd="88dp"
+        android:layout_marginBottom="-37dp"
+        android:layout_toEndOf="@+id/map"
+        android:textSize="12dp" />
+
+    <TextView
+        android:id="@+id/beacon2"
+        android:layout_width="86dp"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/map"
+        android:layout_marginStart="9dp"
+        android:layout_marginTop="10dp"
+        android:textSize="12dp" />
 
 
     <TextView
@@ -33,8 +88,10 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_below="@id/map"
-        android:layout_toRightOf="@id/noBeaconsActive"
+        android:layout_marginLeft="4dp"
 
+        android:layout_marginTop="62dp"
+        android:layout_toRightOf="@id/noBeaconsActive"
         android:text=" Beacons Currently Active" />
 
     <TextView
@@ -42,14 +99,19 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_below="@id/map"
-
-        android:text="0" />
+        android:layout_alignStart="@+id/beacon1"
+        android:layout_marginStart="6dp"
+        android:layout_marginTop="61dp" />
 
     <TextView
         android:id="@+id/textDistanceBeacons"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_below="@id/noBeaconsActive"
+        android:layout_marginStart="-8dp"
+
+        android:layout_marginTop="7dp"
+        android:layout_toEndOf="@id/noBeaconsActive"
 
         android:text="Distance to Beacons:" />
 
@@ -58,6 +120,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_below="@id/noBeaconsActive"
-        android:layout_toRightOf="@id/textDistanceBeacons"
-        android:text="  METERS METERS" />
+        android:layout_marginLeft="32dp"
+        android:layout_marginTop="10dp"
+        android:layout_toRightOf="@id/textDistanceBeacons" />
 </RelativeLayout>

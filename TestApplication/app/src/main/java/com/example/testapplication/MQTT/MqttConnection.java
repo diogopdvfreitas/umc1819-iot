@@ -16,7 +16,7 @@ import org.eclipse.paho.client.mqttv3.MqttMessage;
 public class MqttConnection
 {
     private final String clientId = "Francisco";
-    private final String serverUri = "tcp://192.168.0.109:1883";
+    private final String serverUri = "tcp://172.20.10.7:1883";
     private final String username = "android";
     private final String password = "smartphone";
     final String subscriptionTopic = "/laterator/beacons/+/+";

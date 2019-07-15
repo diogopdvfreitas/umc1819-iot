@@ -12,7 +12,7 @@
 /* --- GLOBAL VARIABLES --- */
 
 Preferences preferences;
-const int ARDUINO_N = 1;
+const int ARDUINO_N = 4;
 const int BUTTON_KEY = 0;
 const int LED_BUILTIN = 2;
 
@@ -48,7 +48,7 @@ const std::string uuids[] = {"178a09a8-200f-422c-ac98-ddea53704f19",
                              "bc8131f0-b76b-4362-b4f5-a95bc6b4fa71",
                              "df3a4416-8737-424c-b795-5066aacbff94"};
 
-const std::string positions[4][2] = {{"0", "0"}, {"0", "1"}, {"1", "0"}, {"1", "1"}};
+const std::string positions[4][2] = {{"0", "10"}, {"0", "0"}, {"6", "0"}, {"6", "10"}};
 
 BLEAdvertising *bleAdv;
 
