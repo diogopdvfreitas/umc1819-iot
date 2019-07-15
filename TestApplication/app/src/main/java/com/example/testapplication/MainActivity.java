@@ -60,7 +60,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer
     double bleDistance;
 
     MqttConnection mqttConnection;
-    
+
     @Override
     protected void onCreate(Bundle savedInstanceState)
     {
@@ -142,7 +142,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer
                         view.invalidate();
                     }
                     //Beacon 4
-                    else if (aux.mX == dpToPixels(295) && aux.mY == 0)
+                    else if (aux.mX == (6 * dpToPixels(295)/10) && aux.mY == 0)
                     {
                         TextView view = findViewById(R.id.beacon4);
                         view.setText(aux.mName);
